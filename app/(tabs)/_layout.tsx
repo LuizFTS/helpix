@@ -1,33 +1,59 @@
 import { Tabs } from 'expo-router';
+import { LayoutGrid, ListChecks, MoreHorizontal, PiggyBank } from 'lucide-react-native';
 import React from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '../../src/core/theme';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  // Base de conforto acima da faixa de gestos do Android/iOS + o próprio
+  // inset do sistema (que varia por aparelho). Isso evita que a barra
+  // fique colada na borda e conflite com o swipe de "voltar/home".
+  const bottomSpacing = Math.max(insets.bottom, 16);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: colors.backgroundElevated,
+          borderTopColor: colors.border,
+          height: 58 + bottomSpacing,
+          paddingBottom: bottomSpacing,
+          paddingTop: 10,
+        },
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="economia"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Economia',
+          tabBarIcon: ({ color, size }) => <PiggyBank color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="atividades"
+        options={{
+          title: 'Atividades',
+          tabBarIcon: ({ color, size }) => <ListChecks color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="mais"
+        options={{
+          title: 'Mais',
+          tabBarIcon: ({ color, size }) => <MoreHorizontal color={color} size={size} />,
         }}
       />
     </Tabs>
