@@ -13,9 +13,14 @@ module.exports = {
 
         primary: '#4F7CFF',
         primaryMuted: '#3A5BC7',
+        primarySoft: 'rgba(79, 124, 255, 0.16)',
 
         success: '#3DDC84',
+        successSoft: 'rgba(61, 220, 132, 0.16)',
+
         danger: '#FF6B6B',
+        dangerSoft: 'rgba(255, 107, 107, 0.16)',
+
         warning: '#FFC24B',
 
         textPrimary: '#FFFFFF',

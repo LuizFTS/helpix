@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Plus } from 'lucide-react-native';
 import { colors, shadow } from '../../core/theme';
@@ -28,23 +28,10 @@ export function FloatingButton({ onPress }: FloatingButtonProps) {
       onPressOut={() => {
         scale.value = withSpring(1, { damping: 10, stiffness: 200 });
       }}
-      style={[animatedStyle, styles.base, shadow.floatingButton]}
+      style={[animatedStyle, shadow.floatingButton]}
+      className="absolute right-5 bottom-6 w-[60px] h-[60px] rounded-full bg-primary items-center justify-center"
     >
       <Plus color={colors.white} size={28} />
     </AnimatedPressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

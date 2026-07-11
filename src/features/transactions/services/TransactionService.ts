@@ -1,13 +1,24 @@
-import { MOCK_TRANSACTIONS, MockTransaction } from '../../../shared/constants/mockData';
-import { mapMockTransactionToTransaction } from '../mappers/transaction.mapper';
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  query,
+  orderBy,
+  DocumentData,
+  QueryDocumentSnapshot,
+} from 'firebase/firestore';
+import { db } from '../../../core/services/firebase';
 import { CreateTransactionInput, Transaction, UpdateTransactionInput } from '../types/transaction.types';
 
-function delay(ms = 300) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const COLLECTION = 'transactions';
 
-function generateId() {
-  return `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+function generateGroupId() {
+  return `group-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
 function roundTo2(value: number) {
@@ -20,104 +31,109 @@ function addMonths(dateISO: string, months: number): string {
   return date.toISOString().split('T')[0];
 }
 
+function docToTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transaction {
+  return { id: snap.id, ...(snap.data() as Omit<Transaction, 'id'>) };
+}
+
 /**
- * TransactionService
- * Toda a comunicação de dados de transações passa por aqui.
- * Mantém um array em memória (cópia do mock) para que criar/editar/
- * excluir funcione de forma consistente durante a sessão do app,
- * simulando o comportamento futuro de uma API real.
+ * TransactionService — mesma interface pública de antes. Os documentos
+ * no Firestore têm exatamente o formato de `Transaction` (sem mais
+ * precisar de um mapper "mock -> domínio", já que agora o dado já
+ * nasce no formato certo).
  */
 class TransactionServiceImpl {
-  private transactions: MockTransaction[] = [...MOCK_TRANSACTIONS];
+  private collectionRef = collection(db, COLLECTION);
 
   async getAll(): Promise<Transaction[]> {
-    await delay();
-    return this.transactions
-      .map(mapMockTransactionToTransaction)
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
+    const q = query(this.collectionRef, orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(docToTransaction);
   }
 
   async getById(id: string): Promise<Transaction | undefined> {
-    await delay(150);
-    const found = this.transactions.find((t) => t.id === id);
-    return found ? mapMockTransactionToTransaction(found) : undefined;
+    const snap = await getDoc(doc(db, COLLECTION, id));
+    if (!snap.exists()) return undefined;
+    return { id: snap.id, ...(snap.data() as Omit<Transaction, 'id'>) };
   }
 
   /**
-   * Se a despesa for parcelada, expande em N transações independentes,
-   * todas compartilhando o mesmo `installmentGroupId` — exatamente como
-   * descrito na spec (cada parcela é uma transação própria).
+   * Se a despesa for parcelada, expande em N documentos independentes
+   * (um por mês), todos com o mesmo `installmentGroupId` — escritos
+   * atomicamente com `writeBatch`.
    */
   async create(input: CreateTransactionInput): Promise<Transaction[]> {
-    await delay();
-
     const isInstallment = input.type === 'expense' && input.installments?.isInstallment;
     const total = isInstallment ? Math.max(input.installments?.total ?? 1, 1) : 1;
-    const installmentGroupId = isInstallment ? `group-${generateId()}` : undefined;
+    const installmentGroupId = isInstallment ? generateGroupId() : undefined;
     const installmentAmount = isInstallment ? roundTo2(input.amount / total) : input.amount;
 
-    const created: MockTransaction[] = Array.from({ length: total }).map((_, index) => ({
-      id: generateId(),
-      description: total > 1 ? `${input.description} (${index + 1}/${total})` : input.description,
-      amount: input.type === 'expense' ? -installmentAmount : installmentAmount,
-      date: addMonths(input.date, index),
-      type: input.type,
-      paymentMethodId: input.paymentMethodId,
-      icon: input.type === 'income' ? 'ArrowDownToLine' : 'ShoppingCart',
-      installmentGroupId,
-      installmentNumber: total > 1 ? index + 1 : undefined,
-      installmentTotal: total > 1 ? total : undefined,
-      notes: input.notes,
-    }));
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    const refs = Array.from({ length: total }).map(() => doc(this.collectionRef));
 
-    this.transactions = [...created, ...this.transactions];
-    return created.map(mapMockTransactionToTransaction);
+    refs.forEach((ref, index) => {
+      const data: Omit<Transaction, 'id'> = {
+        description: total > 1 ? `${input.description} (${index + 1}/${total})` : input.description,
+        amount: installmentAmount,
+        date: addMonths(input.date, index),
+        type: input.type,
+        paymentMethodId: input.paymentMethodId,
+        installmentGroupId,
+        installmentNumber: total > 1 ? index + 1 : undefined,
+        installmentTotal: total > 1 ? total : undefined,
+        notes: input.notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+      batch.set(ref, data);
+    });
+
+    await batch.commit();
+
+    const created = await Promise.all(refs.map((ref) => getDoc(ref)));
+    return created.map((snap) => ({ id: snap.id, ...(snap.data() as Omit<Transaction, 'id'>) }));
   }
 
   async update(input: UpdateTransactionInput): Promise<Transaction | undefined> {
-    await delay();
-    const index = this.transactions.findIndex((t) => t.id === input.id);
-    if (index === -1) return undefined;
+    const ref = doc(db, COLLECTION, input.id);
+    const existing = await getDoc(ref);
+    if (!existing.exists()) return undefined;
 
-    const current = this.transactions[index];
-    const updated: MockTransaction = {
-      ...current,
-      description: input.description ?? current.description,
-      date: input.date ?? current.date,
-      paymentMethodId: input.paymentMethodId ?? current.paymentMethodId,
-      notes: input.notes ?? current.notes,
-      amount:
-        input.amount !== undefined
-          ? current.type === 'expense'
-            ? -Math.abs(input.amount)
-            : Math.abs(input.amount)
-          : current.amount,
-    };
+    const updates: Partial<Transaction> = { updatedAt: new Date().toISOString() };
+    if (input.description !== undefined) updates.description = input.description;
+    if (input.date !== undefined) updates.date = input.date;
+    if (input.paymentMethodId !== undefined) updates.paymentMethodId = input.paymentMethodId;
+    if (input.notes !== undefined) updates.notes = input.notes;
+    if (input.amount !== undefined) updates.amount = Math.abs(input.amount);
 
-    this.transactions[index] = updated;
-    return mapMockTransactionToTransaction(updated);
+    await updateDoc(ref, updates);
+    const updated = await getDoc(ref);
+    return { id: updated.id, ...(updated.data() as Omit<Transaction, 'id'>) };
   }
 
   async remove(id: string): Promise<void> {
-    await delay(200);
-    this.transactions = this.transactions.filter((t) => t.id !== id);
+    await deleteDoc(doc(db, COLLECTION, id));
   }
 
   async duplicate(id: string): Promise<Transaction | undefined> {
-    await delay(200);
-    const original = this.transactions.find((t) => t.id === id);
-    if (!original) return undefined;
+    const original = await getDoc(doc(db, COLLECTION, id));
+    if (!original.exists()) return undefined;
 
-    const copy: MockTransaction = {
-      ...original,
-      id: generateId(),
-      description: `${original.description} (cópia)`,
+    const originalData = original.data() as Omit<Transaction, 'id'>;
+    const now = new Date().toISOString();
+    const data: Omit<Transaction, 'id'> = {
+      ...originalData,
+      description: `${originalData.description} (cópia)`,
       installmentGroupId: undefined,
       installmentNumber: undefined,
       installmentTotal: undefined,
+      createdAt: now,
+      updatedAt: now,
     };
-    this.transactions = [copy, ...this.transactions];
-    return mapMockTransactionToTransaction(copy);
+
+    const ref = await addDoc(this.collectionRef, data);
+    const created = await getDoc(ref);
+    return { id: created.id, ...(created.data() as Omit<Transaction, 'id'>) };
   }
 }
 

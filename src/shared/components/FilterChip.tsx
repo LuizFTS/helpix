@@ -1,6 +1,5 @@
 import React from 'react';
-import { Pressable, Text, StyleSheet } from 'react-native';
-import { colors, radius } from '../../core/theme';
+import { Pressable, Text } from 'react-native';
 
 type FilterChipProps = {
   label: string;
@@ -12,28 +11,13 @@ export function FilterChip({ label, active = false, onPress }: FilterChipProps) 
   return (
     <Pressable
       onPress={onPress}
-      style={[
-        styles.base,
-        {
-          backgroundColor: active ? colors.primarySoft : colors.surface,
-          borderColor: active ? colors.primary : colors.border,
-        },
-      ]}
+      className={`px-4 py-2 rounded-full mr-2 border ${
+        active ? 'bg-primarySoft border-primary' : 'bg-surface border-border'
+      }`}
     >
-      <Text style={[styles.label, { color: active ? colors.primary : colors.textSecondary }]}>
+      <Text className={`text-sm font-semibold ${active ? 'text-primary' : 'text-textSecondary'}`}>
         {label}
       </Text>
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  label: { fontSize: 14, fontWeight: '600' },
-});

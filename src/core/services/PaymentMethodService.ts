@@ -1,26 +1,30 @@
-import { MOCK_PAYMENT_METHODS } from '../../shared/constants/mockData';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { PaymentMethod } from '../../shared/types/paymentMethod.types';
 
+const COLLECTION = 'paymentMethods';
+
 /**
- * Fica em `src/core/services` (e não dentro de uma feature) porque é
- * consumido tanto pelo Dashboard quanto por Transactions.
- * Hoje retorna dados mockados; trocar por uma API real no futuro não
- * deve exigir mudanças nas telas ou hooks que o consomem.
+ * Mesma interface pública de antes (getAll/getById) — só a implementação
+ * interna mudou de "array mockado" pra Firestore. Nenhuma tela, hook ou
+ * componente que consome este Service precisou mudar.
  */
 class PaymentMethodServiceImpl {
+  private collectionRef = collection(db, COLLECTION);
+
   async getAll(): Promise<PaymentMethod[]> {
-    await delay();
-    return MOCK_PAYMENT_METHODS;
+    const snapshot = await getDocs(this.collectionRef);
+    return snapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...(docSnap.data() as Omit<PaymentMethod, 'id'>),
+    }));
   }
 
   async getById(id: string): Promise<PaymentMethod | undefined> {
-    await delay(150);
-    return MOCK_PAYMENT_METHODS.find((pm) => pm.id === id);
+    const snap = await getDoc(doc(db, COLLECTION, id));
+    if (!snap.exists()) return undefined;
+    return { id: snap.id, ...(snap.data() as Omit<PaymentMethod, 'id'>) };
   }
-}
-
-function delay(ms = 250) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export const PaymentMethodService = new PaymentMethodServiceImpl();

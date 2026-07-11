@@ -11,3 +11,4 @@ export * from './SectionTitle';
 export * from './FloatingButton';
 export * from './PeriodSelector';
 export * from './Input';
+export * from './DatePickerInput';

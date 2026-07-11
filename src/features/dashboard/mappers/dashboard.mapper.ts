@@ -1,6 +1,6 @@
+import { Transaction } from '../../transactions/types/transaction.types';
 import { PaymentMethod } from '../../../shared/types/paymentMethod.types';
 import { Period, isSamePeriod } from '../../../shared/utils/date';
-import { Transaction } from '../../transactions/types/transaction.types';
 import { DashboardSummary, PaymentMethodBreakdown } from '../types/dashboard.types';
 
 /**
@@ -8,14 +8,34 @@ import { DashboardSummary, PaymentMethodBreakdown } from '../types/dashboard.typ
  * e de Services — facilita testar isso separadamente no futuro.
  */
 
-export function buildDashboardSummary(
-  transactions: Transaction[],
-  period: Period,
-  previousBalance: number
-): DashboardSummary {
+function sumByType(transactions: Transaction[], type: 'income' | 'expense'): number {
+  return transactions.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0);
+}
+
+function isBeforePeriod(dateISO: string, period: Period): boolean {
+  const date = new Date(dateISO);
+  const periodStart = new Date(period.year, period.month, 1);
+  return date < periodStart;
+}
+
+/**
+ * Saldo anterior = saldo acumulado de TODAS as transações antes do
+ * início do período selecionado (não é mais um valor fixo mockado —
+ * agora reflete o histórico real do Firestore, inclusive quando o
+ * usuário navega entre meses com as setas de período).
+ */
+function computePreviousBalance(transactions: Transaction[], period: Period): number {
+  const priorTransactions = transactions.filter((t) => isBeforePeriod(t.date, period));
+  const income = sumByType(priorTransactions, 'income');
+  const expenses = sumByType(priorTransactions, 'expense');
+  return income - expenses;
+}
+
+export function buildDashboardSummary(transactions: Transaction[], period: Period): DashboardSummary {
   const periodTransactions = transactions.filter((t) => isSamePeriod(t.date, period));
   const income = sumByType(periodTransactions, 'income');
   const expenses = sumByType(periodTransactions, 'expense');
+  const previousBalance = computePreviousBalance(transactions, period);
 
   return {
     income,
@@ -42,8 +62,4 @@ export function buildPaymentMethodBreakdown(
       return { paymentMethod, total, percentage };
     })
     .filter((breakdown) => breakdown.total > 0);
-}
-
-function sumByType(transactions: Transaction[], type: 'income' | 'expense'): number {
-  return transactions.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0);
 }

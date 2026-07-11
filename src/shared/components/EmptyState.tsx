@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 import { Inbox, LucideIcon } from 'lucide-react-native';
-import { colors, spacing } from '../../core/theme';
+import { colors } from '../../core/theme';
 
 type EmptyStateProps = {
   title: string;
@@ -11,27 +11,14 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, icon: Icon = Inbox }: EmptyStateProps) {
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrapper}>
+    <View className="items-center justify-center px-8 py-14">
+      <View className="w-16 h-16 rounded-full bg-surface items-center justify-center mb-4">
         <Icon color={colors.textSecondary} size={28} />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      {description ? <Text style={styles.description}>{description}</Text> : null}
+      <Text className="text-textPrimary text-base font-semibold text-center">{title}</Text>
+      {description ? (
+        <Text className="text-textSecondary text-sm text-center mt-2 leading-5">{description}</Text>
+      ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: 56 },
-  iconWrapper: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  title: { color: colors.textPrimary, fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  description: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 8, lineHeight: 20 },
-});

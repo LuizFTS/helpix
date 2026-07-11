@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, ScrollView, Alert, StyleSheet } from 'react-native';
 import { Controller } from 'react-hook-form';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { colors } from '../../src/core/theme';
-import { Input, Button, Loading } from '../../src/shared/components';
+import { Input, Button, Loading, DatePickerInput } from '../../src/shared/components';
 import { usePaymentMethods } from '../../src/shared/hooks/usePaymentMethods';
 import {
   useTransaction,
@@ -24,6 +24,16 @@ export default function EditTransactionScreen() {
 
   const { form, submit, isSubmitting } = useTransactionForm(transaction);
   const { control } = form;
+
+  // Mesma regra da tela de criação: o tipo da transação (fixo na
+  // edição) determina quais métodos de pagamento fazem sentido.
+  const availablePaymentMethods = useMemo(
+    () =>
+      paymentMethods.filter((pm) =>
+        transaction?.type === 'income' ? pm.type === 'income' : pm.type !== 'income'
+      ),
+    [paymentMethods, transaction?.type]
+  );
 
   if (isLoading || !transaction) {
     return <Loading fullScreen label="Carregando movimentação..." />;
@@ -87,10 +97,10 @@ export default function EditTransactionScreen() {
           control={control}
           name="date"
           render={({ field, fieldState }) => (
-            <Input
+            <DatePickerInput
               label="Data"
               value={field.value}
-              onChangeText={field.onChange}
+              onChange={field.onChange}
               error={fieldState.error?.message}
             />
           )}
@@ -101,7 +111,7 @@ export default function EditTransactionScreen() {
           name="paymentMethodId"
           render={({ field, fieldState }) => (
             <PaymentMethodPicker
-              paymentMethods={paymentMethods}
+              paymentMethods={availablePaymentMethods}
               selectedId={field.value}
               onSelect={field.onChange}
               error={fieldState.error?.message}

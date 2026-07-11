@@ -1,6 +1,7 @@
-import { Stack } from 'expo-router';
-import React from 'react';
+import '../global.css';
 import 'react-native-gesture-handler';
+import React from 'react';
+import { Stack } from 'expo-router';
 import { AppProviders } from '../src/core/providers/AppProviders';
 import { colors } from '../src/core/theme';
 
@@ -21,6 +22,7 @@ export default function RootLayout() {
           options={{ title: 'Nova Movimentação', presentation: 'modal' }}
         />
         <Stack.Screen name="transaction/[id]" options={{ title: 'Editar Movimentação' }} />
+        <Stack.Screen name="saving/[id]" options={{ title: 'Meta' }} />
       </Stack>
     </AppProviders>
   );
