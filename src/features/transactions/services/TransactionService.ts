@@ -13,6 +13,7 @@ import {
   QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../../core/services/firebase';
+import { stripUndefined } from '../../../core/services/firestoreUtils';
 import { CreateTransactionInput, Transaction, UpdateTransactionInput } from '../types/transaction.types';
 
 const COLLECTION = 'transactions';
@@ -35,12 +36,6 @@ function docToTransaction(snap: QueryDocumentSnapshot<DocumentData>): Transactio
   return { id: snap.id, ...(snap.data() as Omit<Transaction, 'id'>) };
 }
 
-/**
- * TransactionService — mesma interface pública de antes. Os documentos
- * no Firestore têm exatamente o formato de `Transaction` (sem mais
- * precisar de um mapper "mock -> domínio", já que agora o dado já
- * nasce no formato certo).
- */
 class TransactionServiceImpl {
   private collectionRef = collection(db, COLLECTION);
 
@@ -56,11 +51,6 @@ class TransactionServiceImpl {
     return { id: snap.id, ...(snap.data() as Omit<Transaction, 'id'>) };
   }
 
-  /**
-   * Se a despesa for parcelada, expande em N documentos independentes
-   * (um por mês), todos com o mesmo `installmentGroupId` — escritos
-   * atomicamente com `writeBatch`.
-   */
   async create(input: CreateTransactionInput): Promise<Transaction[]> {
     const isInstallment = input.type === 'expense' && input.installments?.isInstallment;
     const total = isInstallment ? Math.max(input.installments?.total ?? 1, 1) : 1;
@@ -85,7 +75,7 @@ class TransactionServiceImpl {
         createdAt: now,
         updatedAt: now,
       };
-      batch.set(ref, data);
+      batch.set(ref, stripUndefined(data));
     });
 
     await batch.commit();
@@ -106,13 +96,25 @@ class TransactionServiceImpl {
     if (input.notes !== undefined) updates.notes = input.notes;
     if (input.amount !== undefined) updates.amount = Math.abs(input.amount);
 
-    await updateDoc(ref, updates);
+    await updateDoc(ref, stripUndefined(updates));
     const updated = await getDoc(ref);
     return { id: updated.id, ...(updated.data() as Omit<Transaction, 'id'>) };
   }
 
   async remove(id: string): Promise<void> {
     await deleteDoc(doc(db, COLLECTION, id));
+  }
+
+  /**
+   * Exclui várias transações de uma vez (usado pela seleção múltipla
+   * em Atividades). Feito com `writeBatch` — atômico e mais rápido do
+   * que N chamadas separadas de `deleteDoc`.
+   */
+  async removeMany(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const batch = writeBatch(db);
+    ids.forEach((id) => batch.delete(doc(db, COLLECTION, id)));
+    await batch.commit();
   }
 
   async duplicate(id: string): Promise<Transaction | undefined> {
@@ -131,7 +133,7 @@ class TransactionServiceImpl {
       updatedAt: now,
     };
 
-    const ref = await addDoc(this.collectionRef, data);
+    const ref = await addDoc(this.collectionRef, stripUndefined(data));
     const created = await getDoc(ref);
     return { id: created.id, ...(created.data() as Omit<Transaction, 'id'>) };
   }

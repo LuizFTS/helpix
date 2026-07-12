@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet } from 'react-native';
 import { Controller } from 'react-hook-form';
 import { useRouter } from 'expo-router';
 import { colors } from '../../src/core/theme';
-import { Input, Button, DatePickerInput } from '../../src/shared/components';
+import { Input, Button, DatePickerInput, AmountInput } from '../../src/shared/components';
 import { usePaymentMethods } from '../../src/shared/hooks/usePaymentMethods';
 import { useTransactionForm } from '../../src/features/transactions/hooks/useTransactionForm';
 import { TransactionTypeToggle } from '../../src/features/transactions/components/TransactionTypeToggle';
@@ -21,10 +21,11 @@ export default function NewTransactionScreen() {
   const paymentMethodId = watch('paymentMethodId');
 
   /**
-   * Regra: método de pagamento do tipo "income" (ex: Entradas) só faz
-   * sentido pra Receita; os demais tipos (credit/pix/cash) só fazem
-   * sentido pra Despesa. Isso garante, por construção, que parcelamento
-   * (que só existe pra Despesa) nunca aparece junto de "Entradas".
+   * Receita → só métodos com type 'income' (hoje, só "Entradas").
+   * Despesa → só métodos com type !== 'income' (Nubank, Santander, Itaú, PIX).
+   * Isso garante, por construção, que "Entradas" nunca aparece numa
+   * despesa e, portanto, nunca convive com o seletor de parcelamento
+   * (que só existe pra despesa).
    */
   const availablePaymentMethods = useMemo(
     () =>
@@ -32,13 +33,23 @@ export default function NewTransactionScreen() {
     [paymentMethods, type]
   );
 
-  // Se o usuário trocar de Despesa <-> Receita e o método selecionado
-  // não fizer mais sentido pro novo tipo, limpa a seleção.
+  // Se trocar Despesa <-> Receita e o método selecionado não fizer mais
+  // sentido pro novo tipo, limpa a seleção.
   useEffect(() => {
     if (paymentMethodId && !availablePaymentMethods.some((pm) => pm.id === paymentMethodId)) {
       setValue('paymentMethodId', '');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
+
+  const handleToggleInstallment = (value: boolean) => {
+    setValue('isInstallment', value);
+    // Mínimo de 2 parcelas — já sugere 2 ao ligar o parcelamento, em
+    // vez de deixar o campo vazio esperando o usuário digitar.
+    if (value && !watch('installmentTotal')) {
+      setValue('installmentTotal', 2);
+    }
+  };
 
   const onSubmit = async () => {
     await submit();
@@ -73,12 +84,10 @@ export default function NewTransactionScreen() {
           control={control}
           name="amount"
           render={({ field, fieldState }) => (
-            <Input
+            <AmountInput
               label="Valor"
-              placeholder="R$ 0,00"
-              keyboardType="decimal-pad"
-              value={field.value ? String(field.value) : ''}
-              onChangeText={(text) => field.onChange(parseFloat(text.replace(',', '.')) || 0)}
+              value={field.value}
+              onChangeValue={field.onChange}
               error={fieldState.error?.message}
             />
           )}
@@ -110,15 +119,11 @@ export default function NewTransactionScreen() {
           )}
         />
 
-        {/* Com o filtro acima, type === 'expense' nunca terá
-            paymentMethodId apontando pra um método "income" — então
-            esta condição sozinha já é suficiente pra nunca mostrar
-            parcelamento junto de "Entradas". */}
         {type === 'expense' ? (
           <InstallmentSelector
             isInstallment={isInstallment}
             installmentTotal={watch('installmentTotal')}
-            onChangeIsInstallment={(value) => setValue('isInstallment', value)}
+            onChangeIsInstallment={handleToggleInstallment}
             onChangeTotal={(value) => setValue('installmentTotal', value)}
             error={formState.errors.installmentTotal?.message}
           />

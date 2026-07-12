@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SavingService } from '../services/SavingService';
 import { withProgress } from '../mappers/saving.mapper';
-import { AddContributionInput } from '../types/saving.types';
+import { AddContributionInput, CreateSavingGoalInput } from '../types/saving.types';
 
 export const savingGoalsQueryKey = ['saving-goals'] as const;
 
@@ -34,6 +34,22 @@ export function useSavingContributions(savingGoalId: string | undefined) {
     queryKey: ['saving-contributions', savingGoalId],
     queryFn: () => SavingService.getContributions(savingGoalId as string),
     enabled: !!savingGoalId,
+  });
+}
+
+export function useCreateSavingGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSavingGoalInput) => SavingService.create(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savingGoalsQueryKey }),
+  });
+}
+
+export function useDeleteSavingGoal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => SavingService.remove(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savingGoalsQueryKey }),
   });
 }
 

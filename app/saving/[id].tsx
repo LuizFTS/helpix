@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Text, StyleSheet } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { View, ScrollView, Text, Alert, StyleSheet } from 'react-native';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Target, Calendar } from 'lucide-react-native';
 import { colors, radius, spacing } from '../../src/core/theme';
 import { Loading, SectionTitle, Button, EmptyState, CurrencyText } from '../../src/shared/components';
-import { useSavingGoal, useSavingContributions } from '../../src/features/savings/hooks/useSavings';
+import {
+  useSavingGoal,
+  useSavingContributions,
+  useDeleteSavingGoal,
+} from '../../src/features/savings/hooks/useSavings';
 import { ContributionItem } from '../../src/features/savings/components/ContributionItem';
 import { AddContributionSheet } from '../../src/features/savings/components/AddContributionSheet';
 
 export default function SavingGoalScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: goal, isLoading } = useSavingGoal(id);
   const { data: contributions = [] } = useSavingContributions(id);
+  const deleteGoal = useDeleteSavingGoal();
   const [sheetVisible, setSheetVisible] = useState(false);
 
   if (isLoading || !goal) {
@@ -19,6 +25,24 @@ export default function SavingGoalScreen() {
   }
 
   const isComplete = goal.percentage >= 100;
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Excluir caixinha',
+      `Tem certeza que deseja excluir "${goal.name}"? Isso também apaga o histórico de aportes.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteGoal.mutateAsync(goal.id);
+            router.back();
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -40,11 +64,11 @@ export default function SavingGoalScreen() {
           <View style={styles.divider} />
 
           <View style={styles.row}>
-            <View style={styles.rowItem}>
+            <View>
               <Text style={styles.rowLabel}>Atual</Text>
               <CurrencyText value={goal.currentAmount} size="md" colorMode="neutral" />
             </View>
-            <View style={styles.rowItem}>
+            <View>
               <Text style={styles.rowLabel}>Meta</Text>
               <CurrencyText value={goal.targetAmount} size="md" colorMode="neutral" />
             </View>
@@ -77,6 +101,16 @@ export default function SavingGoalScreen() {
             <ContributionItem key={contribution.id} contribution={contribution} />
           ))
         )}
+
+        <View style={{ height: 32 }} />
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <Button
+            label="Excluir caixinha"
+            variant="danger"
+            onPress={handleDelete}
+            isLoading={deleteGoal.isPending}
+          />
+        </View>
       </ScrollView>
 
       <AddContributionSheet
@@ -109,7 +143,6 @@ const styles = StyleSheet.create({
   percentage: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md },
-  rowItem: {},
   rowLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   metaText: { color: colors.textSecondary, fontSize: 13, marginLeft: 8 },

@@ -18,6 +18,12 @@ export type SavingGoalWithProgress = SavingGoal & {
   remaining: number; // valor que falta pra bater a meta
 };
 
+export type CreateSavingGoalInput = {
+  name: string;
+  targetAmount: number;
+  deadline: string;
+};
+
 export type AddContributionInput = {
   savingGoalId: string;
   amount: number;

@@ -7,12 +7,18 @@ type TransactionsListProps = {
   transactions: Transaction[];
   paymentMethodsById: Map<string, string>;
   onPressTransaction: (id: string) => void;
+  onLongPressTransaction?: (id: string) => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
 };
 
 export function TransactionsList({
   transactions,
   paymentMethodsById,
   onPressTransaction,
+  onLongPressTransaction,
+  selectionMode = false,
+  selectedIds,
 }: TransactionsListProps) {
   if (transactions.length === 0) {
     return (
@@ -27,6 +33,9 @@ export function TransactionsList({
           key={transaction.id}
           index={index}
           onPress={onPressTransaction}
+          onLongPress={onLongPressTransaction}
+          selectionMode={selectionMode}
+          selected={selectedIds?.has(transaction.id)}
           transaction={{
             id: transaction.id,
             description: transaction.description,

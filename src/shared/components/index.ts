@@ -12,3 +12,4 @@ export * from './FloatingButton';
 export * from './PeriodSelector';
 export * from './Input';
 export * from './DatePickerInput';
+export * from './AmountInput';

@@ -1,16 +1,18 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '../../src/core/theme';
+import { CreateSavingGoalSheet } from '../../src/features/savings/components/CreateSavingGoalSheet';
 import { SavingGoalCard } from '../../src/features/savings/components/SavingGoalCard';
 import { useSavingGoals } from '../../src/features/savings/hooks/useSavings';
-import { EmptyState, Loading } from '../../src/shared/components';
+import { EmptyState, FloatingButton, Loading } from '../../src/shared/components';
 
 export default function EconomiaScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: goals = [], isLoading } = useSavingGoals();
+  const [createSheetVisible, setCreateSheetVisible] = useState(false);
 
   if (isLoading) {
     return <Loading fullScreen label="Carregando metas..." />;
@@ -20,18 +22,25 @@ export default function EconomiaScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 140 }}>
         <Text style={styles.title}>Economias</Text>
-        <Text style={styles.subtitle}>Suas metas financeiras</Text>
+        <Text style={styles.subtitle}>Suas caixinhas financeiras</Text>
 
         <View style={{ height: spacing.lg }} />
 
         {goals.length === 0 ? (
-          <EmptyState title="Nenhuma meta ainda" description="Suas metas financeiras vão aparecer aqui." />
+          <EmptyState
+            title="Nenhuma caixinha ainda"
+            description="Toque no + para criar sua primeira meta financeira."
+          />
         ) : (
           goals.map((goal) => (
             <SavingGoalCard key={goal.id} goal={goal} onPress={() => router.push(`/saving/${goal.id}`)} />
           ))
         )}
       </ScrollView>
+
+      <FloatingButton onPress={() => setCreateSheetVisible(true)} />
+
+      <CreateSavingGoalSheet visible={createSheetVisible} onClose={() => setCreateSheetVisible(false)} />
     </View>
   );
 }

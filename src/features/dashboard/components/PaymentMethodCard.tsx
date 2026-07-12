@@ -20,6 +20,11 @@ export function PaymentMethodCard({ breakdown, active, onPress }: PaymentMethodC
   const IconComponent =
     (Icons as Record<string, Icons.LucideIcon>)[paymentMethod.icon] ?? Icons.CreditCard;
 
+  // "Entradas" (e qualquer método do tipo income) representa dinheiro
+  // recebido, não gasto — o rótulo precisa refletir isso, em vez de
+  // sempre dizer "% de gastos".
+  const percentageLabel = paymentMethod.type === 'income' ? 'de recebimentos' : 'de gastos';
+
   return (
     <Pressable
       onPress={onPress}
@@ -35,7 +40,9 @@ export function PaymentMethodCard({ breakdown, active, onPress }: PaymentMethodC
       <View style={styles.progressTrack}>
         <View style={[styles.progressFill, { width: `${Math.min(Math.abs(percentage), 100)}%` }]} />
       </View>
-      <Text style={styles.percentage}>{Math.abs(percentage)}% de gastos</Text>
+      <Text style={styles.percentage}>
+        {Math.abs(percentage)}% {percentageLabel}
+      </Text>
     </Pressable>
   );
 }

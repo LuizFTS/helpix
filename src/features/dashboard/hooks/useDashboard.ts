@@ -1,17 +1,11 @@
+import { useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { useFilterStore } from '../../../core/providers/useFilterStore';
-import { usePaymentMethods } from '../../../shared/hooks/usePaymentMethods';
-import { isSamePeriod } from '../../../shared/utils/date';
-import { useTransactions } from '../../transactions/hooks/useTransactions';
 import { DashboardService } from '../services/DashboardService';
+import { useTransactions } from '../../transactions/hooks/useTransactions';
+import { usePaymentMethods } from '../../../shared/hooks/usePaymentMethods';
+import { useFilterStore } from '../../../core/providers/useFilterStore';
+import { isSamePeriod } from '../../../shared/utils/date';
 
-/**
- * Hook único consumido pela DashboardScreen. Combina: período/filtro
- * ativo (Zustand), resumo e breakdown por método (Services via React
- * Query) e a lista de movimentações já filtrada — a tela não precisa
- * saber como nada disso é calculado.
- */
 export function useDashboard() {
   const period = useFilterStore((state) => state.period);
   const activePaymentMethodIds = useFilterStore((state) => state.activePaymentMethodIds);
@@ -52,6 +46,19 @@ export function useDashboard() {
   const isLoading =
     summaryQuery.isLoading || breakdownQuery.isLoading || transactionsQuery.isLoading;
 
+  /**
+   * Refetch combinado (resumo, breakdown, transações e métodos de
+   * pagamento) — usado pelo pull-to-refresh do Dashboard.
+   */
+  const refetch = useCallback(async () => {
+    await Promise.all([
+      summaryQuery.refetch(),
+      breakdownQuery.refetch(),
+      transactionsQuery.refetch(),
+      paymentMethodsQuery.refetch(),
+    ]);
+  }, [summaryQuery.refetch, breakdownQuery.refetch, transactionsQuery.refetch, paymentMethodsQuery.refetch]);
+
   return {
     period,
     goToPreviousPeriod,
@@ -63,5 +70,6 @@ export function useDashboard() {
     filteredTransactions,
     paymentMethodsById,
     isLoading,
+    refetch,
   };
 }

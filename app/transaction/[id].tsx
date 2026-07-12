@@ -1,17 +1,17 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { View, ScrollView, Alert, StyleSheet } from 'react-native';
 import { Controller } from 'react-hook-form';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { colors } from '../../src/core/theme';
-import { Input, Button, Loading, DatePickerInput } from '../../src/shared/components';
-import { usePaymentMethods } from '../../src/shared/hooks/usePaymentMethods';
+import { PaymentMethodPicker } from '../../src/features/transactions/components/PaymentMethodPicker';
+import { useTransactionForm } from '../../src/features/transactions/hooks/useTransactionForm';
 import {
-  useTransaction,
   useDeleteTransaction,
   useDuplicateTransaction,
+  useTransaction,
 } from '../../src/features/transactions/hooks/useTransactions';
-import { useTransactionForm } from '../../src/features/transactions/hooks/useTransactionForm';
-import { PaymentMethodPicker } from '../../src/features/transactions/components/PaymentMethodPicker';
+import { AmountInput, Button, DatePickerInput, Input, Loading } from '../../src/shared/components';
+import { usePaymentMethods } from '../../src/shared/hooks/usePaymentMethods';
 
 export default function EditTransactionScreen() {
   const router = useRouter();
@@ -22,11 +22,12 @@ export default function EditTransactionScreen() {
   const deleteMutation = useDeleteTransaction();
   const duplicateMutation = useDuplicateTransaction();
 
+  // useTransactionForm agora faz form.reset() internamente assim que
+  // `transaction` chega da query — por isso os campos aparecem
+  // preenchidos corretamente ao editar (antes ficavam vazios).
   const { form, submit, isSubmitting } = useTransactionForm(transaction);
   const { control } = form;
 
-  // Mesma regra da tela de criação: o tipo da transação (fixo na
-  // edição) determina quais métodos de pagamento fazem sentido.
   const availablePaymentMethods = useMemo(
     () =>
       paymentMethods.filter((pm) =>
@@ -83,11 +84,10 @@ export default function EditTransactionScreen() {
           control={control}
           name="amount"
           render={({ field, fieldState }) => (
-            <Input
+            <AmountInput
               label="Valor"
-              keyboardType="decimal-pad"
-              value={String(field.value)}
-              onChangeText={(text) => field.onChange(parseFloat(text.replace(',', '.')) || 0)}
+              value={field.value}
+              onChangeValue={field.onChange}
               error={fieldState.error?.message}
             />
           )}

@@ -1,63 +1,102 @@
 import {
-  MOCK_SAVING_GOALS,
-  MOCK_SAVING_CONTRIBUTIONS,
-  MockSavingContribution,
-} from '../../../shared/constants/mockData';
-import { AddContributionInput, SavingContribution, SavingGoal } from '../types/saving.types';
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  increment,
+  query,
+  where,
+  writeBatch
+} from 'firebase/firestore';
+import { db } from '../../../core/services/firebase';
+import { stripUndefined } from '../../../core/services/firestoreUtils';
+import {
+  AddContributionInput,
+  CreateSavingGoalInput,
+  SavingContribution,
+  SavingGoal,
+} from '../types/saving.types';
 
-function delay(ms = 250) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function generateId() {
-  return `contrib-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-}
+const GOALS_COLLECTION = 'savingGoals';
+const CONTRIBUTIONS_COLLECTION = 'savingContributions';
 
 /**
- * SavingService — mesma convenção dos outros Services: nenhuma tela
- * acessa os arrays mockados diretamente. Mantém estado em memória pra
- * que "adicionar aporte" atualize o saldo da meta e o histórico
- * durante a sessão do app.
+ * SavingService — mesma convenção dos outros Services (interface
+ * pública estável, implementação em Firestore). Diferente da primeira
+ * versão (mockada), agora as "caixinhas" são criadas pelo próprio
+ * usuário — não existe mais seed de metas fixas.
  */
 class SavingServiceImpl {
-  private goals: SavingGoal[] = [...MOCK_SAVING_GOALS];
-  private contributions: MockSavingContribution[] = [...MOCK_SAVING_CONTRIBUTIONS];
+  private goalsRef = collection(db, GOALS_COLLECTION);
+  private contributionsRef = collection(db, CONTRIBUTIONS_COLLECTION);
 
   async getAll(): Promise<SavingGoal[]> {
-    await delay();
-    return this.goals;
+    const snapshot = await getDocs(this.goalsRef);
+    return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SavingGoal, 'id'>) }));
   }
 
   async getById(id: string): Promise<SavingGoal | undefined> {
-    await delay(150);
-    return this.goals.find((g) => g.id === id);
+    const snap = await getDoc(doc(db, GOALS_COLLECTION, id));
+    if (!snap.exists()) return undefined;
+    return { id: snap.id, ...(snap.data() as Omit<SavingGoal, 'id'>) };
   }
 
   async getContributions(savingGoalId: string): Promise<SavingContribution[]> {
-    await delay(150);
-    return this.contributions
-      .filter((c) => c.savingGoalId === savingGoalId)
+    const q = query(this.contributionsRef, where('savingGoalId', '==', savingGoalId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Omit<SavingContribution, 'id'>) }))
       .sort((a, b) => (a.date < b.date ? 1 : -1));
   }
 
+  async create(input: CreateSavingGoalInput): Promise<SavingGoal> {
+    const data = stripUndefined({
+      name: input.name,
+      targetAmount: input.targetAmount,
+      deadline: input.deadline,
+      currentAmount: 0,
+    });
+    const ref = await addDoc(this.goalsRef, data);
+    const created = await getDoc(ref);
+    return { id: created.id, ...(created.data() as Omit<SavingGoal, 'id'>) };
+  }
+
+  /** Remove a caixinha e todo o histórico de aportes associado a ela. */
+  async remove(id: string): Promise<void> {
+    const contributionsQuery = query(this.contributionsRef, where('savingGoalId', '==', id));
+    const contributionsSnapshot = await getDocs(contributionsQuery);
+
+    const batch = writeBatch(db);
+    batch.delete(doc(db, GOALS_COLLECTION, id));
+    contributionsSnapshot.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+    await batch.commit();
+  }
+
+  /**
+   * Incrementa `currentAmount` atomicamente (evita condição de corrida
+   * se dois aportes forem feitos quase ao mesmo tempo) e registra o
+   * aporte no histórico.
+   */
   async addContribution(input: AddContributionInput): Promise<SavingGoal | undefined> {
-    await delay();
+    const goalRef = doc(db, GOALS_COLLECTION, input.savingGoalId);
+    const existing = await getDoc(goalRef);
+    if (!existing.exists()) return undefined;
 
-    const goalIndex = this.goals.findIndex((g) => g.id === input.savingGoalId);
-    if (goalIndex === -1) return undefined;
+    const batch = writeBatch(db);
+    batch.update(goalRef, { currentAmount: increment(input.amount) });
 
-    this.contributions = [
-      { id: generateId(), savingGoalId: input.savingGoalId, amount: input.amount, date: input.date },
-      ...this.contributions,
-    ];
+    const contributionRef = doc(this.contributionsRef);
+    batch.set(contributionRef, {
+      savingGoalId: input.savingGoalId,
+      amount: input.amount,
+      date: input.date,
+    });
 
-    const updatedGoal: SavingGoal = {
-      ...this.goals[goalIndex],
-      currentAmount: this.goals[goalIndex].currentAmount + input.amount,
-    };
-    this.goals[goalIndex] = updatedGoal;
+    await batch.commit();
 
-    return updatedGoal;
+    const updated = await getDoc(goalRef);
+    return { id: updated.id, ...(updated.data() as Omit<SavingGoal, 'id'>) };
   }
 }
 

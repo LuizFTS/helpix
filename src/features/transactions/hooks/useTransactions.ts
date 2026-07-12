@@ -12,11 +12,13 @@ export function useTransactions() {
 }
 
 export function useTransaction(id: string | undefined) {
-  return useQuery({
+  const query = useQuery({
     queryKey: [...transactionsQueryKey, id],
-    queryFn: () => TransactionService.getById(id as string),
+    queryFn: async () => (await TransactionService.getById(id as string)) ?? null,
     enabled: !!id,
   });
+
+  return { ...query, data: query.data ?? undefined };
 }
 
 export function useCreateTransaction() {
@@ -39,7 +41,25 @@ export function useDeleteTransaction() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => TransactionService.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: transactionsQueryKey }),
+    onSuccess: (_, id) => {
+      queryClient.removeQueries({ queryKey: [...transactionsQueryKey, id] });
+      queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
+    },
+  });
+}
+
+/**
+ * Exclusão em massa — usada pela seleção múltipla na tela de
+ * Atividades (toque longo pra entrar no modo de seleção).
+ */
+export function useDeleteTransactions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => TransactionService.removeMany(ids),
+    onSuccess: (_, ids) => {
+      ids.forEach((id) => queryClient.removeQueries({ queryKey: [...transactionsQueryKey, id] }));
+      queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
+    },
   });
 }
 
