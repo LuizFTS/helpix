@@ -7,11 +7,6 @@ function sumByType(transactions: Transaction[], type: 'income' | 'expense'): num
   return transactions.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0);
 }
 
-/**
- * Últimos N meses (incluindo o atual), em ordem cronológica (mais
- * antigo primeiro) — bom pra renderizar de cima pra baixo ou da
- * esquerda pra direita num gráfico.
- */
 export function buildMonthlyTrend(transactions: Transaction[], monthsCount = 6): MonthlyTrendPoint[] {
   const points: MonthlyTrendPoint[] = [];
   let period: Period = getCurrentPeriod();
@@ -30,22 +25,27 @@ export function buildMonthlyTrend(transactions: Transaction[], monthsCount = 6):
 }
 
 /**
- * Breakdown por método de pagamento considerando TODO o histórico
- * (diferente do breakdown do Dashboard, que é só do período
- * selecionado) — dá uma visão geral de "onde o dinheiro se move mais".
+ * Mesma correção do breakdown do Dashboard: percentual relativo ao
+ * total de receitas (métodos de Entrada) ou ao total de despesas
+ * (métodos de Saída), considerando TODO o histórico — não um
+ * denominador único misturando os dois tipos.
  */
 export function buildOverallPaymentMethodBreakdown(
   transactions: Transaction[],
   paymentMethods: PaymentMethod[]
 ): OverallPaymentMethodBreakdown[] {
-  const totalMoved = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = sumByType(transactions, 'income');
+  const totalExpenses = sumByType(transactions, 'expense');
 
   return paymentMethods
     .map((paymentMethod) => {
       const total = transactions
         .filter((t) => t.paymentMethodId === paymentMethod.id)
         .reduce((sum, t) => sum + t.amount, 0);
-      const percentage = totalMoved > 0 ? Math.round((total / totalMoved) * 100) : 0;
+
+      const denominator = paymentMethod.type === 'income' ? totalIncome : totalExpenses;
+      const percentage = denominator > 0 ? Math.round((total / denominator) * 100) : 0;
+
       return { paymentMethod, total, percentage };
     })
     .filter((breakdown) => breakdown.total > 0)

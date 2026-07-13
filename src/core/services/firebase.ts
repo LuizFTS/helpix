@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { initializeAuth, getReactNativePersistence, getAuth, Auth } from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initializeAuth, inMemoryPersistence, getAuth, Auth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -22,14 +21,16 @@ export const db = getFirestore(firebaseApp);
  * ser re-executado, e nesse caso usamos `getAuth` (retorna a instância
  * já existente) em vez de tentar inicializar de novo.
  *
- * `getReactNativePersistence(AsyncStorage)` é o que faz o usuário
- * continuar logado depois de fechar e abrir o app de novo — sem isso,
- * o login se perde a cada reload/reinício.
+ * `inMemoryPersistence` é proposital: a sessão NÃO deve sobreviver a
+ * um fechar/reabrir do app — o usuário sempre cai na tela de login.
+ * O atalho de biometria (ver src/features/auth/services/CredentialsStore.ts)
+ * é o que dá uma entrada rápida sem digitar a senha de novo, sem
+ * depender de o Firebase manter a sessão viva sozinho.
  */
 let authInstance: Auth;
 try {
   authInstance = initializeAuth(firebaseApp, {
-    persistence: getReactNativePersistence(AsyncStorage),
+    persistence: inMemoryPersistence,
   });
 } catch {
   authInstance = getAuth(firebaseApp);

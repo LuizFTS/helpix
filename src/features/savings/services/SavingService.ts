@@ -1,15 +1,17 @@
 import {
-  addDoc,
   collection,
   doc,
-  getDoc,
   getDocs,
-  increment,
+  getDoc,
+  addDoc,
+  deleteDoc,
   query,
   where,
-  writeBatch
+  writeBatch,
+  increment,
 } from 'firebase/firestore';
 import { db } from '../../../core/services/firebase';
+import { requireUserId } from '../../../core/services/currentUser';
 import { stripUndefined } from '../../../core/services/firestoreUtils';
 import {
   AddContributionInput,
@@ -21,18 +23,14 @@ import {
 const GOALS_COLLECTION = 'savingGoals';
 const CONTRIBUTIONS_COLLECTION = 'savingContributions';
 
-/**
- * SavingService — mesma convenção dos outros Services (interface
- * pública estável, implementação em Firestore). Diferente da primeira
- * versão (mockada), agora as "caixinhas" são criadas pelo próprio
- * usuário — não existe mais seed de metas fixas.
- */
 class SavingServiceImpl {
   private goalsRef = collection(db, GOALS_COLLECTION);
   private contributionsRef = collection(db, CONTRIBUTIONS_COLLECTION);
 
   async getAll(): Promise<SavingGoal[]> {
-    const snapshot = await getDocs(this.goalsRef);
+    const uid = requireUserId();
+    const q = query(this.goalsRef, where('userId', '==', uid));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SavingGoal, 'id'>) }));
   }
 
@@ -42,6 +40,14 @@ class SavingServiceImpl {
     return { id: snap.id, ...(snap.data() as Omit<SavingGoal, 'id'>) };
   }
 
+  /**
+   * Filtra só por `savingGoalId` (sem `where('userId', ...)` junto) de
+   * propósito — combinar duas condições de igualdade pode exigir um
+   * índice composto dependendo da configuração do projeto. Como
+   * `savingGoalId` só existe pra metas que já pertencem ao usuário
+   * logado (a `getAll()` acima já garante isso), o filtro por
+   * `savingGoalId` sozinho já é suficiente na prática.
+   */
   async getContributions(savingGoalId: string): Promise<SavingContribution[]> {
     const q = query(this.contributionsRef, where('savingGoalId', '==', savingGoalId));
     const snapshot = await getDocs(q);
@@ -51,18 +57,19 @@ class SavingServiceImpl {
   }
 
   async create(input: CreateSavingGoalInput): Promise<SavingGoal> {
+    const uid = requireUserId();
     const data = stripUndefined({
       name: input.name,
       targetAmount: input.targetAmount,
       deadline: input.deadline,
       currentAmount: 0,
+      userId: uid,
     });
     const ref = await addDoc(this.goalsRef, data);
     const created = await getDoc(ref);
     return { id: created.id, ...(created.data() as Omit<SavingGoal, 'id'>) };
   }
 
-  /** Remove a caixinha e todo o histórico de aportes associado a ela. */
   async remove(id: string): Promise<void> {
     const contributionsQuery = query(this.contributionsRef, where('savingGoalId', '==', id));
     const contributionsSnapshot = await getDocs(contributionsQuery);
@@ -73,12 +80,8 @@ class SavingServiceImpl {
     await batch.commit();
   }
 
-  /**
-   * Incrementa `currentAmount` atomicamente (evita condição de corrida
-   * se dois aportes forem feitos quase ao mesmo tempo) e registra o
-   * aporte no histórico.
-   */
   async addContribution(input: AddContributionInput): Promise<SavingGoal | undefined> {
+    const uid = requireUserId();
     const goalRef = doc(db, GOALS_COLLECTION, input.savingGoalId);
     const existing = await getDoc(goalRef);
     if (!existing.exists()) return undefined;
@@ -91,6 +94,7 @@ class SavingServiceImpl {
       savingGoalId: input.savingGoalId,
       amount: input.amount,
       date: input.date,
+      userId: uid,
     });
 
     await batch.commit();

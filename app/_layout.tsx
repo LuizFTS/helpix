@@ -43,6 +43,13 @@ function RootLayoutNav() {
         <Stack.Screen name="transaction/[id]" options={{ title: 'Editar Movimentação' }} />
         <Stack.Screen name="saving/[id]" options={{ title: 'Meta' }} />
         <Stack.Screen name="analytics" options={{ title: 'Análises' }} />
+        <Stack.Screen name="planning/index" options={{ title: 'Planejamento Financeiro' }} />
+        <Stack.Screen
+          name="planning/new"
+          options={{ title: 'Novo Cenário', presentation: 'modal' }}
+        />
+        <Stack.Screen name="planning/[id]/index" options={{ title: 'Cenário' }} />
+        <Stack.Screen name="planning/[id]/edit" options={{ title: 'Editar Cenário' }} />
       </Stack.Protected>
 
       {/* Só acessível deslogado */}

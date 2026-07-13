@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Controller } from 'react-hook-form';
 import { useRouter } from 'expo-router';
 import { colors } from '../../src/core/theme';
@@ -13,7 +13,7 @@ import { InstallmentSelector } from '../../src/features/transactions/components/
 export default function NewTransactionScreen() {
   const router = useRouter();
   const { data: paymentMethods = [] } = usePaymentMethods();
-  const { form, submit, isSubmitting } = useTransactionForm();
+  const { form, submit, submitError, isSubmitting } = useTransactionForm();
   const { control, watch, setValue, formState } = form;
 
   const type = watch('type');
@@ -52,14 +52,19 @@ export default function NewTransactionScreen() {
   };
 
   const onSubmit = async () => {
-    await submit();
-    if (Object.keys(formState.errors).length > 0) return;
-    router.back();
+    const success = await submit();
+    if (success) router.back();
   };
 
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {submitError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{submitError}</Text>
+          </View>
+        ) : null}
+
         <Controller
           control={control}
           name="type"
@@ -153,4 +158,11 @@ export default function NewTransactionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20 },
+  errorBanner: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  errorBannerText: { color: colors.danger, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });

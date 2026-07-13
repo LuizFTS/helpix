@@ -6,11 +6,12 @@ import { colors, shadow } from '../../core/theme';
 
 type FloatingButtonProps = {
   onPress: () => void;
+  accessibilityLabel?: string;
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function FloatingButton({ onPress }: FloatingButtonProps) {
+export function FloatingButton({ onPress, accessibilityLabel = 'Nova movimentação' }: FloatingButtonProps) {
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -20,7 +21,7 @@ export function FloatingButton({ onPress }: FloatingButtonProps) {
   return (
     <AnimatedPressable
       accessibilityRole="button"
-      accessibilityLabel="Nova movimentação"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       onPressIn={() => {
         scale.value = withSpring(0.9, { damping: 12, stiffness: 200 });

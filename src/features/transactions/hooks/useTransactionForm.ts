@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -37,6 +37,12 @@ export function useTransactionForm(existing?: Transaction) {
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: existing ? buildValuesFromExisting(existing) : transactionFormDefaultValues,
+    // Reavalia a cada mudança de campo depois da primeira tentativa de
+    // submit — assim, assim que o usuário escolhe o método de
+    // pagamento (por exemplo), o erro some na hora, sem precisar
+    // apertar "Salvar" de novo pra limpar a mensagem.
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   });
 
   useEffect(() => {
@@ -51,37 +57,63 @@ export function useTransactionForm(existing?: Transaction) {
 
   const createMutation = useCreateTransaction();
   const updateMutation = useUpdateTransaction();
+  const [submitError, setSubmitError] = useState<string | undefined>();
 
-  const submit = form.handleSubmit(async (values) => {
-    if (existing) {
-      await updateMutation.mutateAsync({
-        id: existing.id,
-        description: values.description,
-        amount: values.amount,
-        date: values.date,
-        paymentMethodId: values.paymentMethodId,
-        notes: values.notes,
-      });
-      return;
-    }
+  /**
+   * Retorna `true` só quando a transação foi de fato criada/atualizada
+   * com sucesso. É ISSO que a tela deve usar pra decidir se navega de
+   * volta — nunca `formState.errors` lido depois do `await`, porque
+   * nesse ponto o `formState` capturado no componente já está
+   * desatualizado (o React ainda não re-renderizou com os erros
+   * recém-definidos pelo `handleSubmit`). Usar o retorno de
+   * `handleSubmit`'s callback evita essa armadilha de closure stale
+   * por completo: o `succeeded` só vira `true` dentro do callback
+   * "válido", que só roda se a validação passou.
+   */
+  const submit = async (): Promise<boolean> => {
+    setSubmitError(undefined);
+    let succeeded = false;
 
-    await createMutation.mutateAsync({
-      type: values.type,
-      description: values.description,
-      amount: values.amount,
-      date: values.date,
-      paymentMethodId: values.paymentMethodId,
-      notes: values.notes,
-      installments: {
-        isInstallment: values.isInstallment,
-        total: values.installmentTotal,
-      },
-    });
-  });
+    await form.handleSubmit(async (values) => {
+      try {
+        if (existing) {
+          await updateMutation.mutateAsync({
+            id: existing.id,
+            description: values.description,
+            amount: values.amount,
+            date: values.date,
+            paymentMethodId: values.paymentMethodId,
+            notes: values.notes,
+          });
+        } else {
+          await createMutation.mutateAsync({
+            type: values.type,
+            description: values.description,
+            amount: values.amount,
+            date: values.date,
+            paymentMethodId: values.paymentMethodId,
+            notes: values.notes,
+            installments: {
+              isInstallment: values.isInstallment,
+              total: values.installmentTotal,
+            },
+          });
+        }
+        succeeded = true;
+      } catch (error) {
+        // Falha real de gravação (ex: sem internet) — diferente de
+        // erro de validação, que nem chega a entrar neste callback.
+        setSubmitError('Não foi possível salvar. Verifique sua internet e tente de novo.');
+      }
+    })();
+
+    return succeeded;
+  };
 
   return {
     form,
     submit,
+    submitError,
     isSubmitting: createMutation.isPending || updateMutation.isPending,
   };
 }

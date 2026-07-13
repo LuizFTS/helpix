@@ -3,19 +3,21 @@ export type SavingGoal = {
   name: string;
   targetAmount: number;
   currentAmount: number;
-  deadline: string; // ISO date
+  deadline: string;
+  userId?: string;
 };
 
 export type SavingContribution = {
   id: string;
   savingGoalId: string;
   amount: number;
-  date: string; // ISO
+  date: string;
+  userId?: string;
 };
 
 export type SavingGoalWithProgress = SavingGoal & {
-  percentage: number; // 0-100, arredondado
-  remaining: number; // valor que falta pra bater a meta
+  percentage: number;
+  remaining: number;
 };
 
 export type CreateSavingGoalInput = {

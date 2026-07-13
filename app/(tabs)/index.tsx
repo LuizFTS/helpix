@@ -8,10 +8,12 @@ import { useDashboard } from '../../src/features/dashboard/hooks/useDashboard';
 import { PaymentMethodsCarousel } from '../../src/features/dashboard/components/PaymentMethodsCarousel';
 import { TransactionsList } from '../../src/features/dashboard/components/TransactionsList';
 import { EmailVerificationBanner } from '../../src/features/auth/components/EmailVerificationBanner';
+import { useAuth } from '../../src/core/providers/AuthProvider';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { displayName } = useAuth();
   const {
     period,
     goToPreviousPeriod,
@@ -38,6 +40,12 @@ export default function DashboardScreen() {
     return <Loading fullScreen label="Carregando dashboard..." />;
   }
 
+  // Só o primeiro nome, pra caber bem no card mesmo com nomes
+  // compostos. Contas criadas antes desta etapa não têm `displayName`
+  // salvo — cai num "Olá" genérico em vez de quebrar ou mostrar vazio.
+  const firstName = displayName?.trim().split(' ')[0];
+  const greeting = firstName ? `Olá, ${firstName}` : 'Olá';
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -49,7 +57,7 @@ export default function DashboardScreen() {
         <EmailVerificationBanner />
 
         <MoneyCard
-          greeting="Olá, Alex"
+          greeting={greeting}
           period={period}
           balance={summary.balance}
           income={summary.income}

@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Controller } from 'react-hook-form';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../src/core/theme';
 import { PaymentMethodPicker } from '../../src/features/transactions/components/PaymentMethodPicker';
 import { useTransactionForm } from '../../src/features/transactions/hooks/useTransactionForm';
@@ -25,7 +25,7 @@ export default function EditTransactionScreen() {
   // useTransactionForm agora faz form.reset() internamente assim que
   // `transaction` chega da query — por isso os campos aparecem
   // preenchidos corretamente ao editar (antes ficavam vazios).
-  const { form, submit, isSubmitting } = useTransactionForm(transaction);
+  const { form, submit, submitError, isSubmitting } = useTransactionForm(transaction);
   const { control } = form;
 
   const availablePaymentMethods = useMemo(
@@ -41,8 +41,8 @@ export default function EditTransactionScreen() {
   }
 
   const handleSave = async () => {
-    await submit();
-    router.back();
+    const success = await submit();
+    if (success) router.back();
   };
 
   const handleDelete = () => {
@@ -67,6 +67,12 @@ export default function EditTransactionScreen() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {submitError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{submitError}</Text>
+          </View>
+        ) : null}
+
         <Controller
           control={control}
           name="description"
@@ -146,4 +152,11 @@ export default function EditTransactionScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20 },
+  errorBanner: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  errorBannerText: { color: colors.danger, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });

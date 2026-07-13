@@ -8,11 +8,12 @@ import {
   deleteDoc,
   writeBatch,
   query,
-  orderBy,
+  where,
   DocumentData,
   QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../../core/services/firebase';
+import { requireUserId } from '../../../core/services/currentUser';
 import { stripUndefined } from '../../../core/services/firestoreUtils';
 import { CreateTransactionInput, Transaction, UpdateTransactionInput } from '../types/transaction.types';
 
@@ -40,9 +41,14 @@ class TransactionServiceImpl {
   private collectionRef = collection(db, COLLECTION);
 
   async getAll(): Promise<Transaction[]> {
-    const q = query(this.collectionRef, orderBy('date', 'desc'));
+    const uid = requireUserId();
+    // Sem `orderBy` no servidor de propósito: combinar `where` +
+    // `orderBy` em campos diferentes exige um índice composto no
+    // Firestore. Como a lista de transações nunca é gigante (é uso
+    // pessoal), ordenar no cliente evita essa dor de configuração.
+    const q = query(this.collectionRef, where('userId', '==', uid));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(docToTransaction);
+    return snapshot.docs.map(docToTransaction).sort((a, b) => (a.date < b.date ? 1 : -1));
   }
 
   async getById(id: string): Promise<Transaction | undefined> {
@@ -52,6 +58,7 @@ class TransactionServiceImpl {
   }
 
   async create(input: CreateTransactionInput): Promise<Transaction[]> {
+    const uid = requireUserId();
     const isInstallment = input.type === 'expense' && input.installments?.isInstallment;
     const total = isInstallment ? Math.max(input.installments?.total ?? 1, 1) : 1;
     const installmentGroupId = isInstallment ? generateGroupId() : undefined;
@@ -74,6 +81,7 @@ class TransactionServiceImpl {
         notes: input.notes,
         createdAt: now,
         updatedAt: now,
+        userId: uid,
       };
       batch.set(ref, stripUndefined(data));
     });
@@ -105,11 +113,6 @@ class TransactionServiceImpl {
     await deleteDoc(doc(db, COLLECTION, id));
   }
 
-  /**
-   * Exclui várias transações de uma vez (usado pela seleção múltipla
-   * em Atividades). Feito com `writeBatch` — atômico e mais rápido do
-   * que N chamadas separadas de `deleteDoc`.
-   */
   async removeMany(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     const batch = writeBatch(db);

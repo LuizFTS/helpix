@@ -3,8 +3,8 @@ export type TransactionType = 'income' | 'expense';
 export type Transaction = {
   id: string;
   description: string;
-  amount: number; // sempre positivo; o sinal é derivado de `type`
-  date: string; // ISO 8601
+  amount: number;
+  date: string;
   type: TransactionType;
   paymentMethodId: string;
   installmentGroupId?: string;
@@ -13,6 +13,7 @@ export type Transaction = {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  userId?: string;
 };
 
 export type CreateTransactionInput = {

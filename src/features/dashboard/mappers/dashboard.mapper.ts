@@ -3,11 +3,6 @@ import { PaymentMethod } from '../../../shared/types/paymentMethod.types';
 import { Period, isSamePeriod } from '../../../shared/utils/date';
 import { DashboardSummary, PaymentMethodBreakdown } from '../types/dashboard.types';
 
-/**
- * Toda a matemática de agregação do Dashboard vive aqui, isolada de UI
- * e de Services — facilita testar isso separadamente no futuro.
- */
-
 function sumByType(transactions: Transaction[], type: 'income' | 'expense'): number {
   return transactions.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0);
 }
@@ -18,12 +13,6 @@ function isBeforePeriod(dateISO: string, period: Period): boolean {
   return date < periodStart;
 }
 
-/**
- * Saldo anterior = saldo acumulado de TODAS as transações antes do
- * início do período selecionado (não é mais um valor fixo mockado —
- * agora reflete o histórico real do Firestore, inclusive quando o
- * usuário navega entre meses com as setas de período).
- */
 function computePreviousBalance(transactions: Transaction[], period: Period): number {
   const priorTransactions = transactions.filter((t) => isBeforePeriod(t.date, period));
   const income = sumByType(priorTransactions, 'income');
@@ -45,20 +34,34 @@ export function buildDashboardSummary(transactions: Transaction[], period: Perio
   };
 }
 
+/**
+ * Percentual de cada método é relativo ao total DO MESMO TIPO no
+ * período — não ao total geral movimentado. Um método de "Entrada"
+ * (ex: Entradas/Recebimentos) mostra sua fatia do total de RECEITAS;
+ * um método de "Saída" (Nubank, PIX, etc.) mostra sua fatia do total
+ * de DESPESAS. Misturar os dois num único denominador (como era antes)
+ * produzia percentuais sem sentido — ex: um método de receita único
+ * apareceria como "100% de gastos".
+ */
 export function buildPaymentMethodBreakdown(
   transactions: Transaction[],
   paymentMethods: PaymentMethod[],
   period: Period
 ): PaymentMethodBreakdown[] {
   const periodTransactions = transactions.filter((t) => isSamePeriod(t.date, period));
-  const totalMoved = periodTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = sumByType(periodTransactions, 'income');
+  const totalExpenses = sumByType(periodTransactions, 'expense');
 
   return paymentMethods
     .map((paymentMethod) => {
-      const total = periodTransactions
-        .filter((t) => t.paymentMethodId === paymentMethod.id)
-        .reduce((sum, t) => sum + t.amount, 0);
-      const percentage = totalMoved > 0 ? Math.round((total / totalMoved) * 100) : 0;
+      const relevantTransactions = periodTransactions.filter(
+        (t) => t.paymentMethodId === paymentMethod.id
+      );
+      const total = relevantTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+      const denominator = paymentMethod.type === 'income' ? totalIncome : totalExpenses;
+      const percentage = denominator > 0 ? Math.round((total / denominator) * 100) : 0;
+
       return { paymentMethod, total, percentage };
     })
     .filter((breakdown) => breakdown.total > 0);

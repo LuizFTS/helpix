@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { Controller } from 'react-hook-form';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Wallet, Eye, EyeOff } from 'lucide-react-native';
+import { Wallet, Eye, EyeOff, Fingerprint, Check } from 'lucide-react-native';
 import { colors, spacing } from '../src/core/theme';
 import { Input, Button } from '../src/shared/components';
 import { useAuthForm } from '../src/features/auth/hooks/useAuthForm';
+import { useBiometricLogin } from '../src/features/auth/hooks/useBiometricLogin';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { form, submit, mode, toggleMode, firebaseError, isSubmitting } = useAuthForm();
+  const { form, submit, mode, toggleMode, firebaseError, isSubmitting, remember, setRemember } =
+    useAuthForm();
   const { control, formState } = form;
+  const { canUseBiometrics, isAuthenticating, error: biometricError, loginWithBiometrics } =
+    useBiometricLogin();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -35,10 +39,48 @@ export default function LoginScreen() {
 
       <View style={{ height: spacing.xl }} />
 
-      {firebaseError ? (
+      {firebaseError || biometricError ? (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorBannerText}>{firebaseError}</Text>
+          <Text style={styles.errorBannerText}>{firebaseError ?? biometricError}</Text>
         </View>
+      ) : null}
+
+      {!isSignUp && canUseBiometrics ? (
+        <>
+          <Pressable
+            onPress={loginWithBiometrics}
+            disabled={isAuthenticating}
+            style={[styles.biometricButton, isAuthenticating && { opacity: 0.6 }]}
+          >
+            <Fingerprint color={colors.primary} size={22} />
+            <Text style={styles.biometricButtonText}>
+              {isAuthenticating ? 'Verificando...' : 'Entrar com biometria'}
+            </Text>
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou entre com e-mail</Text>
+            <View style={styles.dividerLine} />
+          </View>
+        </>
+      ) : null}
+
+      {isSignUp ? (
+        <Controller
+          control={control}
+          name="name"
+          render={({ field, fieldState }) => (
+            <Input
+              label="Nome"
+              placeholder="Como podemos te chamar?"
+              autoCapitalize="words"
+              value={field.value}
+              onChangeText={field.onChange}
+              error={fieldState.error?.message}
+            />
+          )}
+        />
       ) : null}
 
       <Controller
@@ -110,6 +152,19 @@ export default function LoginScreen() {
         />
       ) : null}
 
+      {!isSignUp ? (
+        <Pressable
+          onPress={() => setRemember((v) => !v)}
+          style={styles.rememberRow}
+          hitSlop={8}
+        >
+          <View style={[styles.checkbox, remember && styles.checkboxChecked]}>
+            {remember ? <Check size={14} color={colors.white} /> : null}
+          </View>
+          <Text style={styles.rememberText}>Lembrar de mim</Text>
+        </Pressable>
+      ) : null}
+
       <View style={{ height: spacing.sm }} />
 
       <Button
@@ -154,4 +209,32 @@ const styles = StyleSheet.create({
   toggleLink: { alignItems: 'center' },
   toggleText: { color: colors.textSecondary, fontSize: 14 },
   toggleTextStrong: { color: colors.primary, fontWeight: '700' },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    marginBottom: spacing.md,
+  },
+  biometricButtonText: { color: colors.primary, fontSize: 15, fontWeight: '700', marginLeft: 8 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textTertiary, fontSize: 12, marginHorizontal: spacing.sm },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  rememberText: { color: colors.textSecondary, fontSize: 14 },
 });

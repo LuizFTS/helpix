@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendEmailVerification,
+  updateProfile,
   reload,
   User,
 } from 'firebase/auth';
@@ -20,8 +21,13 @@ class AuthServiceImpl {
     return credential.user;
   }
 
-  async signUp(email: string, password: string): Promise<User> {
+  async signUp(email: string, password: string, name: string): Promise<User> {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
+    // Salva o nome como displayName do Firebase — é o que o Dashboard
+    // usa pra montar a saudação ("Olá, {nome}"). Feito antes do
+    // sendEmailVerification só por organização, a ordem não importa
+    // pra nenhum dos dois.
+    await updateProfile(credential.user, { displayName: name });
     // Dispara o e-mail de verificação automaticamente ao criar a conta.
     await sendEmailVerification(credential.user);
     return credential.user;
